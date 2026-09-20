@@ -19,11 +19,10 @@ app.set("trust proxy", 1);
 let apiRateLimit;
 app.use(
     cors({
-        origin: [
-            "http://localhost:5173",
-            "https://mern-auth-rbac.vercel.app"
-        ],
-        credentials: true
+        origin: ["http://localhost:5173", process.env.FRONTEND_URL].filter(Boolean),
+        credentials: true,
+        methods: ["GET", "POST", "OPTIONS"],
+        allowedHeaders: ["Content-Type", "Authorization"]
     })
 );
 app.use(express.json());

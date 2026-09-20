@@ -1,0 +1,4 @@
+.auth-divider { align-items: center; color: #94a3b8; display: flex; font-size: .8rem; gap: .75rem; margin: 1.25rem 0; }
+.auth-divider::before, .auth-divider::after { background: #e2e8f0; content: ""; height: 1px; flex: 1; }
+.button--google { background: #fff; border-color: #cbd5e1; color: #1e293b; width: 100%; }
+.button--google:hover:not(:disabled) { background: #f8fafc; border-color: #94a3b8; }

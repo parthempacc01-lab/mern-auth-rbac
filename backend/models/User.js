@@ -15,12 +15,15 @@ const userSchema = new mongoose.Schema(
 
         password: {
             type: String,
-            required: true
+            // OAuth accounts do not have a local password.
+            required: function () {
+                return !this.googleId;
+            }
         },
 
         role: {
             type: String,
-            enum: ["user", "admin"],
+            enum: ["user", "moderator", "admin"],
             default: "user"
         },
 

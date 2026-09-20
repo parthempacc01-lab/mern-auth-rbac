@@ -6,6 +6,16 @@ const { redisClient } = require("../config/redis");
 const { createTestTransporter, nodemailer } = require("../config/email");
 const googleClient = require("../config/google");
 
+const isProduction = process.env.NODE_ENV === "production";
+const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "");
+const backendUrl = (process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 5000}`).replace(/\/$/, "");
+const refreshCookieOptions = {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? "none" : "lax",
+    maxAge: 7 * 24 * 60 * 60 * 1000
+};
+
 const googleCallback = async (req, res) => {
     try {
         const { code } = req.query;
@@ -69,7 +79,8 @@ const googleCallback = async (req, res) => {
         const refreshToken = jwt.sign(
             {
                 userId: user._id,
-                role: user.role
+                role: user.role,
+                familyId
             },
             process.env.REFRESH_TOKEN_SECRET,
             {
@@ -91,22 +102,14 @@ const googleCallback = async (req, res) => {
         ); await redisClient.sAdd(
             `user:sessions:${user._id.toString()}`,
             jti
-        ); res.cookie("refreshToken", refreshToken, {
-            httpOnly: true,
-            secure: false,
-            sameSite: "lax",
-            maxAge: 7 * 24 * 60 * 60 * 1000
-        }); return res.status(200).json({
-            message: "Google login successful",
-            accessToken
-        });
+        );
+        await redisClient.set(`family:${familyId}`, "active", { EX: 7 * 24 * 60 * 60 });
+        res.cookie("refreshToken", refreshToken, refreshCookieOptions);
+        return res.redirect(`${frontendUrl}/login?google=success`);
 
     } catch (error) {
         console.error("Google OAuth error:", error);
-
-        return res.status(500).json({
-            message: "Google authentication failed"
-        });
+        return res.redirect(`${frontendUrl}/login?google=error`);
     }
 };
 
@@ -166,7 +169,7 @@ const registerUser = async (req, res) => {
         });
 
         const verificationUrl =
-            `http://localhost:5000/api/auth/verify-email?token=${verificationToken}`;
+            `${backendUrl}/api/auth/verify-email?token=${verificationToken}`;
 
         const transporter = await createTestTransporter();
 
@@ -215,9 +218,7 @@ const verifyEmail = async (req, res) => {
         const { token } = req.query;
 
         if (!token) {
-            return res.status(400).json({
-                message: "Verification token is required"
-            });
+            return res.redirect(`${frontendUrl}/verify-email?status=error`);
         }
 
         const hashedToken = crypto
@@ -233,9 +234,7 @@ const verifyEmail = async (req, res) => {
         });
 
         if (!user) {
-            return res.status(400).json({
-                message: "Invalid or expired verification token"
-            });
+            return res.redirect(`${frontendUrl}/verify-email?status=error`);
         }
 
         user.emailVerified = true;
@@ -244,15 +243,10 @@ const verifyEmail = async (req, res) => {
 
         await user.save();
 
-        res.status(200).json({
-            message: "Email verified successfully"
-        });
+        return res.redirect(`${frontendUrl}/verify-email?status=success`);
     } catch (error) {
         console.error(error);
-
-        res.status(500).json({
-            message: "Server error"
-        });
+        return res.redirect(`${frontendUrl}/verify-email?status=error`);
     }
 };
 const forgotPassword = async (req, res) => {
@@ -293,7 +287,7 @@ const forgotPassword = async (req, res) => {
         console.log("RESET EXPIRY:", resetExpires);
 
         const resetUrl =
-            `http://localhost:5173/reset-password?token=${resetToken}`;
+            `${frontendUrl}/reset-password?token=${resetToken}`;
 
         console.log("PASSWORD RESET URL:", resetUrl);
 
@@ -434,7 +428,7 @@ const resendVerificationEmail = async (req, res) => {
         await user.save();
 
         const verificationUrl =
-            `http://localhost:5000/api/auth/verify-email?token=${verificationToken}`;
+            `${backendUrl}/api/auth/verify-email?token=${verificationToken}`;
 
         const transporter = await createTestTransporter();
 
@@ -568,12 +562,7 @@ const loginUser = async (req, res) => {
             }
         );
 
-        res.cookie("refreshToken", refreshToken, {
-            httpOnly: true,
-            secure: false,
-            sameSite: "strict",
-            maxAge: 7 * 24 * 60 * 60 * 1000
-        });
+        res.cookie("refreshToken", refreshToken, refreshCookieOptions);
 
         res.status(200).json({
             message: "Login successful",
@@ -701,12 +690,7 @@ const refreshAccessToken = async (req, res) => {
             }
         );
 
-        res.cookie("refreshToken", newRefreshToken, {
-            httpOnly: true,
-            secure: false,
-            sameSite: "strict",
-            maxAge: 7 * 24 * 60 * 60 * 1000
-        });
+        res.cookie("refreshToken", newRefreshToken, refreshCookieOptions);
 
         res.status(200).json({
             accessToken
@@ -754,21 +738,13 @@ const logoutUser = async (req, res) => {
             }
         );
 
-        res.clearCookie("refreshToken", {
-            httpOnly: true,
-            secure: false,
-            sameSite: "strict"
-        });
+        res.clearCookie("refreshToken", refreshCookieOptions);
 
         return res.status(200).json({
             message: "Logout successful"
         });
     } catch (error) {
-        res.clearCookie("refreshToken", {
-            httpOnly: true,
-            secure: false,
-            sameSite: "strict"
-        });
+        res.clearCookie("refreshToken", refreshCookieOptions);
 
         return res.status(200).json({
             message: "Logout successful"
