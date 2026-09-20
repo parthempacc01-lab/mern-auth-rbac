@@ -15,7 +15,15 @@ const connectDB = require("./config/db");
 const authRoutes = require("./routes/authRoutes");
 const app = express();
 let apiRateLimit;
-app.use(cors());
+app.use(
+    cors({
+        origin: [
+            "http://localhost:5173",
+            "https://mern-auth-rbac.vercel.app"
+        ],
+        credentials: true
+    })
+);
 app.use(express.json());
 app.use(cookieParser());
 app.use("/api", (req, res, next) => apiRateLimit(req, res, next));
