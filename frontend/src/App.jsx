@@ -1,150 +1,34 @@
+import AppShell from "./components/AppShell";
+import { useAuth } from "./context/useAuth";
+import { DashboardPage, ProfilePage, AdminPage, StaffPage } from "./pages/DashboardPages";
+import { ForgotPasswordPage, ResetPasswordPage } from "./pages/RecoveryPages";
+import LoginPage from "./pages/LoginPage";
+import RegisterPage from "./pages/RegisterPage";
+import { NotFoundPage, UnauthorizedPage } from "./pages/StatusPages";
+import ProtectedRoute, { PageLoader } from "./routes/ProtectedRoute";
+import { useRouter } from "./routes/useRouter";
+import "./App.css";
 
-import { useState } from "react";
+const publicPaths = ["/login", "/register", "/forgot-password", "/reset-password"];
+
+function AuthLayout({ children, navigate }) {
+  return <div className="auth-layout"><button className="brand brand--button" onClick={() => navigate("/login")}><span>SA</span>SecureAuth</button><div className="auth-layout__content">{children}</div><p className="auth-layout__aside">Simple authentication. Serious security.</p></div>;
+}
 
 function App() {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const { pathname, search, navigate } = useRouter();
+  const { status, isAuthenticated } = useAuth();
+  const resetToken = new URLSearchParams(search).get("token");
 
-  const [loginEmail, setLoginEmail] = useState("");
-  const [loginPassword, setLoginPassword] = useState("");
+  if (status === "loading") return <PageLoader />;
+  if (isAuthenticated && publicPaths.includes(pathname)) { navigate("/dashboard"); return null; }
 
-  const [profile, setProfile] = useState(null);
+  const publicPage = { "/login": <LoginPage navigate={navigate} />, "/register": <RegisterPage navigate={navigate} />, "/forgot-password": <ForgotPasswordPage navigate={navigate} />, "/reset-password": <ResetPasswordPage navigate={navigate} token={resetToken} /> }[pathname];
+  if (publicPage) return <AuthLayout navigate={navigate}>{publicPage}</AuthLayout>;
 
-  const registerUser = async () => {
-    const response = await fetch("http://localhost:5000/api/auth/register", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        name,
-        email,
-        password
-      })
-    });
-
-    const data = await response.json();
-
-    console.log(data);
-  };
-
-  const loginUser = async () => {
-    const response = await fetch("http://localhost:5000/api/auth/login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        email: loginEmail,
-        password: loginPassword
-      })
-    });
-
-    const data = await response.json();
-
-    console.log(data);
-
-    if (data.token) {
-      localStorage.setItem("token", data.token);
-    }
-  };
-
-  const getProfile = async () => {
-    const token = localStorage.getItem("token");
-
-    const response = await fetch("http://localhost:5000/api/auth/profile", {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
-
-    const data = await response.json();
-
-    setProfile(data.user);
-  };
-
-   const logoutUser = () => {
-  localStorage.removeItem("token");
-  setProfile(null);
-};
-
-  return (
-    <div>
-      <h1>MERN Auth App</h1>
-
-      <h2>Register</h2>
-
-      <input
-        type="text"
-        placeholder="Name"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-      />
-
-      <input
-        type="email"
-        placeholder="Email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-      />
-
-      <input
-        type="password"
-        placeholder="Password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-      />
-
-      <button onClick={registerUser}>
-        Register
-      </button>
-
-      <h2>Login</h2>
-
-      <input
-        type="email"
-        placeholder="Email"
-        value={loginEmail}
-        onChange={(e) => setLoginEmail(e.target.value)}
-      />
-
-      <input
-        type="password"
-        placeholder="Password"
-        value={loginPassword}
-        onChange={(e) => setLoginPassword(e.target.value)}
-      />
-
-      <button onClick={loginUser}>
-        Login
-      </button>
-
-      <h2>Profile</h2>
-
-      <button onClick={getProfile}>
-        Get Profile
-      </button>
-
-      {profile && (
-        <div>
-          <p>Name: {profile.name}</p>
-          <p>Email: {profile.email}</p>
-          <p>Role: {profile.role}</p>
-        </div>
-      )}
-
-    <button onClick={logoutUser}>
-        Logout
-       </button>
-
-    </div>
-  );
+  const page = { "/dashboard": <DashboardPage navigate={navigate} />, "/profile": <ProfilePage />, "/admin": <AdminPage />, "/staff": <StaffPage />, "/unauthorized": <UnauthorizedPage navigate={navigate} /> }[pathname] || <NotFoundPage navigate={navigate} />;
+  const roles = pathname === "/admin" ? ["admin"] : pathname === "/staff" ? ["admin", "moderator"] : undefined;
+  return <ProtectedRoute roles={roles} navigate={navigate}><AppShell path={pathname} navigate={navigate}>{page}</AppShell></ProtectedRoute>;
 }
 
 export default App;
-
-
-
-
-

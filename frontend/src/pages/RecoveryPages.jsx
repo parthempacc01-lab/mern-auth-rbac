@@ -1,0 +1,16 @@
+import { useState } from "react";
+import { authApi } from "../api/authApi";
+import Notice from "../components/Notice";
+import PasswordField from "../components/PasswordField";
+
+export function ForgotPasswordPage({ navigate }) {
+  const [email, setEmail] = useState(""); const [message, setMessage] = useState(""); const [error, setError] = useState(""); const [loading, setLoading] = useState(false);
+  const submit = async (event) => { event.preventDefault(); setError(""); setMessage(""); if (!email.trim()) return setError("Enter your email address."); setLoading(true); try { const data = await authApi.forgotPassword(email.trim()); setMessage(data.message); } catch (requestError) { setError(requestError.message); } finally { setLoading(false); } };
+  return <section className="auth-card"><p className="eyebrow">Account recovery</p><h1>Reset your password</h1><p className="auth-card__copy">We’ll send instructions if an account exists for this email address.</p><form onSubmit={submit} noValidate><Notice>{error}</Notice><Notice type="success">{message}</Notice><label className="field" htmlFor="recovery-email"><span className="field__label">Email address</span><input id="recovery-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required /></label><button className="button button--primary" disabled={loading}>{loading ? "Sending…" : "Send reset link"}</button></form><p className="auth-card__footer"><button className="link-button" onClick={() => navigate("/login")}>Back to sign in</button></p></section>;
+}
+
+export function ResetPasswordPage({ navigate, token }) {
+  const [password, setPassword] = useState(""); const [confirm, setConfirm] = useState(""); const [message, setMessage] = useState(""); const [error, setError] = useState(""); const [loading, setLoading] = useState(false);
+  const submit = async (event) => { event.preventDefault(); setError(""); if (!token) return setError("This reset link is missing its token."); if (password.length < 6) return setError("Your password must contain at least 6 characters."); if (password !== confirm) return setError("The two passwords do not match."); setLoading(true); try { const data = await authApi.resetPassword(token, password); setMessage(`${data.message}. You can now sign in.`); } catch (requestError) { setError(requestError.message); } finally { setLoading(false); } };
+  return <section className="auth-card"><p className="eyebrow">Choose a new password</p><h1>Secure your account</h1><form onSubmit={submit} noValidate><Notice>{error}</Notice><Notice type="success">{message}</Notice><PasswordField id="reset-password" label="New password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" /><PasswordField id="reset-confirm" label="Confirm new password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" /><button className="button button--primary" disabled={loading || Boolean(message)}>{loading ? "Updating…" : "Update password"}</button></form><p className="auth-card__footer"><button className="link-button" onClick={() => navigate("/login")}>Back to sign in</button></p></section>;
+}
